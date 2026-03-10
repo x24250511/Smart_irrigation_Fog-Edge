@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Irrigation Monitoring System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --bg-body: #f4f5f7;
+            --bg-panel: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #d1d5db;
+            --accent-blue: #4A90E2;
+            --accent-green: #5C9E7D;
+            --accent-gray: #888888;
+            --status-online: #2e7d32;
+            --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-mono: "Courier New", Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font-ui);
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            padding: 20px;
+        }
+
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 15px 20px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .system-status {
+            font-size: 13px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--status-online);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+        }
+
+        .metric-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 20px;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .metric-value {
+            font-size: 28px;
+            font-family: var(--font-mono);
+        }
+
+        .metric-unit {
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        #card-irrigation {
+            border-left: 4px solid var(--border-color);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        .chart-card {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+        }
+
+        .chart-header {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            text-transform: uppercase;
+        }
+
+        .canvas-container {
+            position: relative;
+            height: 250px;
+        }
+
+        .log-panel {
+            background: var(--bg-panel);
+            border: 1px solid var(--border-color);
+        }
+
+        .log-header {
+            padding: 10px 15px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-color);
+            text-transform: uppercase;
+        }
+
+        .log-content {
+            height: 150px;
+            overflow-y: auto;
+            padding: 10px 15px;
+            font-family: var(--font-mono);
+            font-size: 12px;
+            background: #fafafa;
+        }
+
+        .log-entry {
+            margin-bottom: 6px;
+        }
+
+        .log-timestamp {
+            color: var(--accent-gray);
+            margin-right: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="dashboard-container">
+
+        <header class="header">
+            <div>
+                <h1>Smart Irrigation Monitoring System</h1>
+                <p>AWS IoT Edge-Fog Architecture</p>
+            </div>
+            <div class="system-status">
+                <div class="status-indicator"></div>
+                SYSTEM ONLINE | LAST UPDATE: <span id="last-update">--:--:--</span>
+            </div>
+        </header>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Avg Soil Moisture</div>
+                <div class="metric-value"><span id="val-moisture">--</span><span class="metric-unit">%</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Avg Temperature</div>
+                <div class="metric-value"><span id="val-temp">--</span><span class="metric-unit">°C</span></div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Light Intensity</div>
+                <div class="metric-value"><span id="val-light">--</span><span class="metric-unit"> lx</span></div>
+            </div>
+            <div class="metric-card" id="card-irrigation">
+                <div class="metric-label">Irrigation Status</div>
+                <div class="metric-value" id="val-irrigation">--</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-header">Soil Moisture</div>
+                <div class="canvas-container"><canvas id="chart-moisture"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">Temperature</div>
+                <div class="canvas-container"><canvas id="chart-temp"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">Light Intensity</div>
+                <div class="canvas-container"><canvas id="chart-light"></canvas></div>
+            </div>
+        </div>
+
+        <div class="log-panel">
+            <div class="log-header">System Log</div>
+            <div class="log-content" id="log-content"></div>
+        </div>
+
+    </div>
+
+    <script>
+
+        const MAX_POINTS = 20;
+        const UPDATE_INTERVAL = 3000;
+
+        const commonOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: '#e5e7eb' } },
+                y: { grid: { color: '#e5e7eb' } }
+            },
+            elements: {
+                line: { tension: 0, borderWidth: 1.5 },
+                point: { radius: 0 }
+            }
+        };
+
+        function createChart(id, color, min, max) {
+            return new Chart(document.getElementById(id), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: color }] },
+                options: { ...commonOptions, scales: { y: { ...commonOptions.scales.y, min, max } } }
+            });
+        }
+
+        const chartMoisture = createChart('chart-moisture', '#4A90E2', 0, 100);
+        const chartTemp = createChart('chart-temp', '#888888', 0, 50);
+        const chartLight = createChart('chart-light', '#5C9E7D', 0, 1000);
+
+        async function fetchData() {
+            try {
+                const res = await fetch('/api/latest/');
+                if (!res.ok) throw new Error(res.status);
+                return await res.json();
+            } catch (e) {
+                log("Connection error", true);
+                return null;
+            }
+        }
+
+        function updateCharts(time, data) {
+            const configs = [
+                { chart: chartMoisture, val: data.avg_soil },
+                { chart: chartTemp, val: data.avg_temp },
+                { chart: chartLight, val: data.avg_light }
+            ];
+
+            configs.forEach(c => {
+                c.chart.data.labels.push(time);
+                c.chart.data.datasets[0].data.push(c.val);
+
+                if (c.chart.data.labels.length > MAX_POINTS) {
+                    c.chart.data.labels.shift();
+                    c.chart.data.datasets[0].data.shift();
+                }
+                c.chart.update();
+            });
+        }
+
+        function updateMetrics(data) {
+            document.getElementById('val-moisture').textContent = data.avg_soil.toFixed(1);
+            document.getElementById('val-temp').textContent = data.avg_temp.toFixed(1);
+            document.getElementById('val-light').textContent = data.avg_light.toFixed(0);
+
+            const irrigationCard = document.getElementById('card-irrigation');
+            const irrigationVal = document.getElementById('val-irrigation');
+
+            if (data.irrigation === "ON") {
+                irrigationVal.textContent = "ON";
+                irrigationCard.style.borderLeftColor = 'var(--accent-green)';
+                irrigationVal.style.color = 'var(--accent-green)';
+            } else {
+                irrigationVal.textContent = "OFF";
+                irrigationCard.style.borderLeftColor = 'var(--border-color)';
+                irrigationVal.style.color = 'var(--text-main)';
+            }
+        }
+
+        function log(msg, error = false) {
+            const logBox = document.getElementById('log-content');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-timestamp">[${time}]</span>${msg}`;
+            if (error) entry.style.color = '#d32f2f';
+            logBox.appendChild(entry);
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        async function tick() {
+            const data = await fetchData();
+            if (!data) return;
+
+            const now = new Date();
+            const label = now.toLocaleTimeString();
+            document.getElementById('last-update').textContent = label;
+
+            updateMetrics(data);
+            updateCharts(label, data);
+
+            log(`Soil: ${data.avg_soil.toFixed(1)}% | Temp: ${data.avg_temp.toFixed(1)}°C | Light: ${data.avg_light.toFixed(0)}lx | Irrigation: ${data.irrigation}`);
+        }
+
+        tick();
+        setInterval(tick, UPDATE_INTERVAL);
+
+    </script>
+
+</body>
+
+</html>

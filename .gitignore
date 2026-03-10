@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Django
+*.log
+*.pot
+*.pyc
+db.sqlite3
+media/
+staticfiles/
+
+# Environment variables
+.env
+.env.*
+
+# AWS / EB
+.elasticbeanstalk/
+.aws/
+*.pem
+
+# Certificates (VERY IMPORTANT)
+certs/
+*.crt
+*.key
+
+# MacOS
+.DS_Store
+
+# VS Code
+.vscode/
+
+# JetBrains
+.idea/
+
+# Coverage / Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Migrations cache (optional)
+**/__pycache__/
+
+# Node (if frontend later)
+node_modules/
