@@ -1,1 +1,2 @@
-web: gunicorn irrigation_backend.wsgi
+web: gunicorn irrigation_backend.wsgi 
+worker: python sqs_worker.py
