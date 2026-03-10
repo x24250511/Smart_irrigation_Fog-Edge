@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+AWS_REGION = "us-east-1"
+SQS_QUEUE_URL = os.environ.get("SQS_QUEUE_URL")
 
 # Application definition
 
@@ -70,6 +72,11 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'irrigation_backend.wsgi.application'
 
+REST_FRAMEWORK = {
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+    ],
+}
 
 # Database
 # https://docs.djangoproject.com/en/1.11/ref/settings/#databases
