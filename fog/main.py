@@ -1,56 +1,17 @@
 from fastapi import FastAPI
 from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
-import boto3
 import json
 import statistics
 import requests
 import threading
 import time
 from datetime import datetime
-from backend.telemetry.models import SensorReading
 
 app = FastAPI()
 
+
 AWS_ENDPOINT = "a1oldafst0eivb-ats.iot.us-east-1.amazonaws.com"
 CLIENT_ID = "fog_node_01"
-
-
-sqs = boto3.client(
-    'sqs',
-    region_name='eu-west-1',
-    aws_access_key_id='YOUR_KEY',
-    aws_secret_access_key='YOUR_SECRET'
-)
-
-QUEUE_URL = "YOUR_QUEUE_URL"
-
-sqs = boto3.client('sqs', region_name='eu-west-1')
-
-while True:
-    messages = sqs.receive_message(
-        QueueUrl=QUEUE_URL,
-        MaxNumberOfMessages=10,
-        WaitTimeSeconds=10
-    )
-
-    for msg in messages.get('Messages', []):
-        body = json.loads(msg['Body'])
-
-        # Save to database
-        SensorReading.objects.create(...)
-
-        sqs.delete_message(
-            QueueUrl=QUEUE_URL,
-            ReceiptHandle=msg['ReceiptHandle']
-        )
-
-
-def send_to_queue(payload):
-    sqs.send_message(
-        QueueUrl=QUEUE_URL,
-        MessageBody=json.dumps(payload)
-    )
-
 
 SENSOR_TOPICS = [
     "sensors/soil",
@@ -60,7 +21,8 @@ SENSOR_TOPICS = [
 ]
 
 CONTROL_TOPIC = "irrigation/control"
-BACKEND_URL = "http://127.0.0.1:8000/api/ingest/"
+
+BACKEND_URL = "irrigation-env.eba-ejg4mp8y.us-east-1.elasticbeanstalk.com/api/ingest/"
 
 soil_values = []
 temp_values = []
@@ -73,9 +35,14 @@ last_published_status = None
 def sensor_callback(client, userdata, message):
     global irrigation_status
 
-    data = json.loads(message.payload)
-    sensor_type = data.get("type")
-    value = data.get("value")
+    try:
+        data = json.loads(message.payload)
+        sensor_type = data.get("type")
+        value = float(data.get("value"))
+
+    except Exception as e:
+        print("Invalid payload:", e)
+        return
 
     if sensor_type == "soil_moisture":
         soil_values.append(value)
@@ -93,35 +60,38 @@ def sensor_callback(client, userdata, message):
     avg_temp = statistics.mean(temp_values) if temp_values else 0
     avg_light = statistics.mean(light_values) if light_values else 0
 
-    if irrigation_status == "OFF":
-        if avg_soil < 25 and (avg_temp > 28 or avg_light > 500):
-            irrigation_status = "ON"
+    # Smart irrigation logic
+    if avg_soil < 25 and (avg_temp > 30 or avg_light > 600):
+        irrigation_status = "ON"
+    else:
+        irrigation_status = "OFF"
 
-    elif irrigation_status == "ON":
-        if avg_soil >= 50:
-            irrigation_status = "OFF"
-
-    print(
-        f"Avg Soil: {avg_soil:.2f} | Avg Temp: {avg_temp:.2f} | Avg Light: {avg_light:.2f}")
-
-    processed_data = {
+    processed_payload = {
         "sensor_id": data.get("sensor_id"),
         "type": sensor_type,
         "value": value,
+        "avg_soil": round(avg_soil, 2),
+        "avg_temp": round(avg_temp, 2),
+        "avg_light": round(avg_light, 2),
         "irrigation": irrigation_status,
-        "timestamp": str(datetime.now())
+        "timestamp": str(datetime.utcnow())
     }
 
-    print(f"[{datetime.now()}] Processed:", processed_data)
+    print("Processed:", processed_payload)
 
     try:
-        send_to_queue(processed_data)
-    except:
-        print("Backend not reachable")
+        response = requests.post(
+            BACKEND_URL, json=processed_payload, timeout=5)
+        print("Backend Response:", response.status_code)
+    except Exception as e:
+        print("Backend not reachable:", e)
 
+
+# ================= CONTROL LOOP ================= #
 
 def control_loop():
     global last_published_status
+
     while True:
         if irrigation_status != last_published_status:
             try:
@@ -132,10 +102,13 @@ def control_loop():
                 )
                 print("Control Published:", irrigation_status)
                 last_published_status = irrigation_status
-            except:
-                print("Control publish failed")
+            except Exception as e:
+                print("Control publish failed:", e)
+
         time.sleep(2)
 
+
+# ================= MQTT SETUP ================= #
 
 mqtt_client = AWSIoTMQTTClient(CLIENT_ID)
 mqtt_client.configureEndpoint(AWS_ENDPOINT, 8883)
@@ -150,10 +123,16 @@ mqtt_client.connect()
 for topic in SENSOR_TOPICS:
     mqtt_client.subscribe(topic, 1, sensor_callback)
 
-print("Fog node connected and subscribed.")
+print("Fog node connected and subscribed to sensors.")
 
+# Start control thread
 threading.Thread(target=control_loop, daemon=True).start()
+# Keep main thread alive
+while True:
+    time.sleep(10)
 
+
+# ================= STATUS ENDPOINT ================= #
 
 @app.get("/status")
 def get_status():
