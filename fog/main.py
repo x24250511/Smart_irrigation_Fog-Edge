@@ -12,7 +12,8 @@ app = FastAPI()
 
 AWS_ENDPOINT = "a1oldafst0eivb-ats.iot.us-east-1.amazonaws.com"
 CLIENT_ID = "fog_node_01"
-
+LOW_THRESHOLD = 20
+HIGH_THRESHOLD = 30
 SENSOR_TOPICS = [
     "sensors/soil",
     "sensors/temp",
@@ -20,13 +21,17 @@ SENSOR_TOPICS = [
     "sensors/light"
 ]
 
+
 CONTROL_TOPIC = "irrigation/control"
 
-BACKEND_URL = "irrigation-env.eba-ejg4mp8y.us-east-1.elasticbeanstalk.com/api/ingest/"
+BACKEND_URL = "http://irrigation-env.eba-ejg4mp8y.us-east-1.elasticbeanstalk.com/ingest/"
 
 soil_values = []
 temp_values = []
 light_values = []
+
+LOW_THRESHOLD = 25
+HIGH_THRESHOLD = 50
 
 irrigation_status = "OFF"
 last_published_status = None
@@ -61,11 +66,11 @@ def sensor_callback(client, userdata, message):
     avg_light = statistics.mean(light_values) if light_values else 0
 
     # Smart irrigation logic
-    if avg_soil < 25 and (avg_temp > 30 or avg_light > 600):
+    if irrigation_status == "OFF" and avg_soil < LOW_THRESHOLD:
         irrigation_status = "ON"
-    else:
-        irrigation_status = "OFF"
 
+    elif irrigation_status == "ON" and avg_soil > HIGH_THRESHOLD:
+        irrigation_status = "OFF"
     processed_payload = {
         "sensor_id": data.get("sensor_id"),
         "type": sensor_type,

@@ -261,7 +261,7 @@
 
         async function fetchData() {
             try {
-                const res = await fetch('/api/latest/');
+                const res = await fetch('/latest/');
                 if (!res.ok) throw new Error(res.status);
                 return await res.json();
             } catch (e) {
@@ -270,11 +270,31 @@
             }
         }
 
-        function updateCharts(time, data) {
+        function calculateAverages(readings) {
+            let soil = [];
+            let temp = [];
+            let light = [];
+
+            readings.forEach(r => {
+                if (r.type === "soil_moisture") soil.push(r.value);
+                if (r.type === "temperature") temp.push(r.value);
+                if (r.type === "light_intensity") light.push(r.value);
+            });
+
+            const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+            return {
+                avg_soil: avg(soil),
+                avg_temp: avg(temp),
+                avg_light: avg(light)
+            };
+        }
+
+        function updateCharts(time, averages) {
             const configs = [
-                { chart: chartMoisture, val: data.avg_soil },
-                { chart: chartTemp, val: data.avg_temp },
-                { chart: chartLight, val: data.avg_light }
+                { chart: chartMoisture, val: averages.avg_soil },
+                { chart: chartTemp, val: averages.avg_temp },
+                { chart: chartLight, val: averages.avg_light }
             ];
 
             configs.forEach(c => {
@@ -289,22 +309,22 @@
             });
         }
 
-        function updateMetrics(data) {
-            document.getElementById('val-moisture').textContent = data.avg_soil.toFixed(1);
-            document.getElementById('val-temp').textContent = data.avg_temp.toFixed(1);
-            document.getElementById('val-light').textContent = data.avg_light.toFixed(0);
+        function updateMetrics(averages, irrigation) {
+            document.getElementById('val-moisture').textContent = averages.avg_soil.toFixed(1);
+            document.getElementById('val-temp').textContent = averages.avg_temp.toFixed(1);
+            document.getElementById('val-light').textContent = averages.avg_light.toFixed(0);
 
             const irrigationCard = document.getElementById('card-irrigation');
             const irrigationVal = document.getElementById('val-irrigation');
 
-            if (data.irrigation === "ON") {
+            if (irrigation === "ON") {
                 irrigationVal.textContent = "ON";
-                irrigationCard.style.borderLeftColor = 'var(--accent-green)';
-                irrigationVal.style.color = 'var(--accent-green)';
+                irrigationCard.style.borderLeftColor = '#5C9E7D';
+                irrigationVal.style.color = '#5C9E7D';
             } else {
                 irrigationVal.textContent = "OFF";
-                irrigationCard.style.borderLeftColor = 'var(--border-color)';
-                irrigationVal.style.color = 'var(--text-main)';
+                irrigationCard.style.borderLeftColor = '#d1d5db';
+                irrigationVal.style.color = '#333333';
             }
         }
 
@@ -327,10 +347,12 @@
             const label = now.toLocaleTimeString();
             document.getElementById('last-update').textContent = label;
 
-            updateMetrics(data);
-            updateCharts(label, data);
+            const averages = calculateAverages(data.readings);
 
-            log(`Soil: ${data.avg_soil.toFixed(1)}% | Temp: ${data.avg_temp.toFixed(1)}°C | Light: ${data.avg_light.toFixed(0)}lx | Irrigation: ${data.irrigation}`);
+            updateMetrics(averages, data.irrigation);
+            updateCharts(label, averages);
+
+            log(`Soil: ${averages.avg_soil.toFixed(1)}% | Temp: ${averages.avg_temp.toFixed(1)}°C | Light: ${averages.avg_light.toFixed(0)}lx | Irrigation: ${data.irrigation}`);
         }
 
         tick();
