@@ -1,101 +1,91 @@
-import boto3
+from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+from sensors import SoilMoistureSensor, TemperatureSensor, HumiditySensor, LightSensor
 import json
 import time
-import random
 from datetime import datetime
 
+# IoT Core config
+AWS_ENDPOINT = "a1oldafst0eivb-ats.iot.us-east-1.amazonaws.com"
+CLIENT_ID = "fog_node_01"
+TOPIC = "irrigation/telemetry"
 
-REGION = "us-east-1"
-QUEUE_URL = "https://sqs.us-east-1.amazonaws.com/022966827464/irrigation-queue"
+CERT_DIR = "/home/ec2-user/certs"
+CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
+KEY_PATH = f"{CERT_DIR}03ee31c7039a0cfcccc3fbe837231a2e74e78c13b13b2e32c3c111758c119c14-private.pem.key"
+CERT_PATH = f"{CERT_DIR}03ee31c7039a0cfcccc3fbe837231a2e74e78c13b13b2e32c3c111758c119c14-certificate.pem.crt"
 
-LOW_THRESHOLD = 25    # Turn ON irrigation
-HIGH_THRESHOLD = 50    # Turn OFF irrigation
-DISPATCH_INTERVAL = 3  # seconds
+# Irrigation thresholds
+LOW_THRESHOLD = 25
+HIGH_THRESHOLD = 50
+DISPATCH_INTERVAL = 5
 
+#  Initialise sensors
+soil_sensor = SoilMoistureSensor()
+temp_sensor = TemperatureSensor()
+humidity_sensor = HumiditySensor()
+light_sensor = LightSensor()
 
-# AWS SQS CLIENT
-
-sqs = boto3.client("sqs", region_name=REGION)
-
-
-# IRRIGATION STATE (HYSTERESIS)
-
+# Initial State
 irrigation_state = "OFF"
 
 
-def apply_irrigation_logic(avg_soil):
+def apply_irrigation_logic(soil_value):
+    """Hysteresis-based fog-layer irrigation decision."""
     global irrigation_state
-
-    if irrigation_state == "OFF" and avg_soil < LOW_THRESHOLD:
+    if irrigation_state == "OFF" and soil_value < LOW_THRESHOLD:
         irrigation_state = "ON"
-
-    elif irrigation_state == "ON" and avg_soil > HIGH_THRESHOLD:
+    elif irrigation_state == "ON" and soil_value > HIGH_THRESHOLD:
         irrigation_state = "OFF"
-
     return irrigation_state
 
 
-def generate_sensor_data():
-    soil = round(random.uniform(15, 40), 2)
-    temp = round(random.uniform(20, 35), 2)
-    humidity = round(random.uniform(40, 80), 2)
-
-    return soil, temp, humidity
-
-
-def send_to_sqs(payload):
-    try:
-        sqs.send_message(
-            QueueUrl=QUEUE_URL,
-            MessageBody=json.dumps(payload)
-        )
-        print("Sent:", payload)
-
-    except Exception as e:
-        print("SQS Error:", e)
+def connect_mqtt():
+    """Connect fog node to AWS IoT Core."""
+    client = AWSIoTMQTTClient(CLIENT_ID)
+    client.configureEndpoint(AWS_ENDPOINT, 8883)
+    client.configureCredentials(CA_PATH, KEY_PATH, CERT_PATH)
+    client.configureAutoReconnectBackoffTime(1, 32, 20)
+    client.configureOfflinePublishQueueing(-1)
+    client.configureDrainingFrequency(2)
+    client.configureConnectDisconnectTimeout(10)
+    client.configureMQTTOperationTimeout(5)
+    client.connect()
+    print("Fog node connected to AWS IoT Core.")
+    return client
 
 
-# ----------------------------
-# MAIN LOOP
-# ----------------------------
-
-print("Fog node started...")
+#  Main loop
+print("Fog node starting...")
+mqtt_client = connect_mqtt()
 
 while True:
     try:
-        soil, temp, humidity = generate_sensor_data()
-
-        irrigation = apply_irrigation_logic(soil)
-
         timestamp = datetime.utcnow().isoformat()
 
-        # Send each sensor type as separate message
-        messages = [
-            {
-                "sensor_id": "soil_01",
-                "type": "soil_moisture",
-                "value": soil,
-                "irrigation": irrigation,
-                "timestamp": timestamp
-            },
-            {
-                "sensor_id": "temp_01",
-                "type": "temperature",
-                "value": temp,
-                "irrigation": irrigation,
-                "timestamp": timestamp
-            },
-            {
-                "sensor_id": "humidity_01",
-                "type": "humidity",
-                "value": humidity,
-                "irrigation": irrigation,
-                "timestamp": timestamp
-            }
+        # Read soil first — needed for irrigation decision
+        soil_data = soil_sensor.read(irrigation_state)
+        irrigation = apply_irrigation_logic(soil_data["value"])
+
+        # Read all sensors
+        readings = [
+            soil_data,
+            temp_sensor.read(irrigation),
+            humidity_sensor.read(irrigation),
+            light_sensor.read(irrigation),
         ]
 
-        for message in messages:
-            send_to_sqs(message)
+        # Publish each to IoT Core → rule forwards to SQS
+        for reading in readings:
+            payload = {
+                "sensor_id":  reading["sensor_id"],
+                "type":       reading["type"],
+                "value":      reading["value"],
+                "irrigation": irrigation,
+                "timestamp":  timestamp
+            }
+            mqtt_client.publish(TOPIC, json.dumps(payload), 1)
+            print(
+                f"[{payload['type']}] {payload['value']} | Irrigation: {irrigation}")
 
         time.sleep(DISPATCH_INTERVAL)
 
@@ -104,5 +94,5 @@ while True:
         break
 
     except Exception as e:
-        print("Unexpected Error:", e)
+        print("Error:", e)
         time.sleep(5)

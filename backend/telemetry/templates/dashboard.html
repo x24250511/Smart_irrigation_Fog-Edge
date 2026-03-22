@@ -80,7 +80,7 @@
 
         .metrics-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(5, 1fr);
             gap: 20px;
         }
 
@@ -114,7 +114,7 @@
 
         .charts-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
         }
 
@@ -199,6 +199,10 @@
                 <div class="metric-label">Light Intensity</div>
                 <div class="metric-value"><span id="val-light">--</span><span class="metric-unit"> lx</span></div>
             </div>
+            <div class="metric-card">
+                <div class="metric-label">Humidity</div>
+                <div class="metric-value"><span id="val-humidity">--</span><span class="metric-unit">%</span></div>
+            </div>
             <div class="metric-card" id="card-irrigation">
                 <div class="metric-label">Irrigation Status</div>
                 <div class="metric-value" id="val-irrigation">--</div>
@@ -217,6 +221,10 @@
             <div class="chart-card">
                 <div class="chart-header">Light Intensity</div>
                 <div class="canvas-container"><canvas id="chart-light"></canvas></div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">Humidity</div>
+                <div class="canvas-container"><canvas id="chart-humidity"></canvas></div>
             </div>
         </div>
 
@@ -258,6 +266,7 @@
         const chartMoisture = createChart('chart-moisture', '#4A90E2', 0, 100);
         const chartTemp = createChart('chart-temp', '#888888', 0, 50);
         const chartLight = createChart('chart-light', '#5C9E7D', 0, 1000);
+        const chartHumidity = createChart('chart-humidity', '#9B59B6', 0, 100);
 
         async function fetchData() {
             try {
@@ -271,14 +280,13 @@
         }
 
         function calculateAverages(readings) {
-            let soil = [];
-            let temp = [];
-            let light = [];
+            let soil = [], temp = [], light = [], humidity = [];
 
             readings.forEach(r => {
                 if (r.type === "soil_moisture") soil.push(r.value);
                 if (r.type === "temperature") temp.push(r.value);
                 if (r.type === "light_intensity") light.push(r.value);
+                if (r.type === "humidity") humidity.push(r.value);
             });
 
             const avg = arr => arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
@@ -286,7 +294,8 @@
             return {
                 avg_soil: avg(soil),
                 avg_temp: avg(temp),
-                avg_light: avg(light)
+                avg_light: avg(light),
+                avg_humidity: avg(humidity)
             };
         }
 
@@ -294,13 +303,13 @@
             const configs = [
                 { chart: chartMoisture, val: averages.avg_soil },
                 { chart: chartTemp, val: averages.avg_temp },
-                { chart: chartLight, val: averages.avg_light }
+                { chart: chartLight, val: averages.avg_light },
+                { chart: chartHumidity, val: averages.avg_humidity }
             ];
 
             configs.forEach(c => {
                 c.chart.data.labels.push(time);
                 c.chart.data.datasets[0].data.push(c.val);
-
                 if (c.chart.data.labels.length > MAX_POINTS) {
                     c.chart.data.labels.shift();
                     c.chart.data.datasets[0].data.shift();
@@ -313,6 +322,7 @@
             document.getElementById('val-moisture').textContent = averages.avg_soil.toFixed(1);
             document.getElementById('val-temp').textContent = averages.avg_temp.toFixed(1);
             document.getElementById('val-light').textContent = averages.avg_light.toFixed(0);
+            document.getElementById('val-humidity').textContent = averages.avg_humidity.toFixed(1);
 
             const irrigationCard = document.getElementById('card-irrigation');
             const irrigationVal = document.getElementById('val-irrigation');
@@ -347,12 +357,17 @@
             const label = now.toLocaleTimeString();
             document.getElementById('last-update').textContent = label;
 
-            const averages = calculateAverages(data.readings);
+            // Use latest (one per sensor) for metric cards
+            const latest = data.latest || data.readings;
+            const latestMetrics = calculateAverages(latest);
 
-            updateMetrics(averages, data.irrigation);
-            updateCharts(label, averages);
+            // Use all readings for chart history
+            const chartMetrics = calculateAverages(data.readings);
 
-            log(`Soil: ${averages.avg_soil.toFixed(1)}% | Temp: ${averages.avg_temp.toFixed(1)}°C | Light: ${averages.avg_light.toFixed(0)}lx | Irrigation: ${data.irrigation}`);
+            updateMetrics(latestMetrics, data.irrigation);
+            updateCharts(label, chartMetrics);
+
+            log(`Soil: ${latestMetrics.avg_soil.toFixed(1)}% | Temp: ${latestMetrics.avg_temp.toFixed(1)}°C | Humidity: ${latestMetrics.avg_humidity.toFixed(1)}% | Light: ${latestMetrics.avg_light.toFixed(0)}lx | Irrigation: ${data.irrigation}`);
         }
 
         tick();

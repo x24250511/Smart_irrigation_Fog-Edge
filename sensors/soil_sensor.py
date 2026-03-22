@@ -32,7 +32,7 @@ mqtt_client.connect()
 mqtt_client.subscribe(CONTROL_TOPIC, 1, control_callback)
 
 while True:
-    if irrigation_status == "ON":
+    if irrigation_status  "ON":
         # 🌱 Slow watering
         soil_level += random.uniform(0.8, 1.2)
     else:

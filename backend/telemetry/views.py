@@ -1,45 +1,79 @@
+import boto3
+import os
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import SensorReading
 from django.shortcuts import render
+
+REGION = "us-east-1"
+DYNAMO_TABLE = os.environ.get("DYNAMO_TABLE", "SensorReadings")
+
+dynamodb = boto3.resource("dynamodb", region_name=REGION)
+table = dynamodb.Table(DYNAMO_TABLE)
 
 
 def dashboard(request):
     return render(request, "dashboard.html")
 
 
-@api_view(["POST"])
-def receive_from_fog(request):
-    data = request.data
-
-    SensorReading.objects.create(
-        sensor_id=data["sensor_id"],
-        sensor_type=data["type"],
-        value=data["value"],
-        irrigation_state=data.get("irrigation", "OFF")
-    )
-
-    return Response({"status": "stored"})
-
-
 @api_view(["GET"])
 def latest_readings(request):
-    readings = SensorReading.objects.order_by("-timestamp")[:20]
+    try:
+        # Full scan
+        result = table.scan()
+        items = result.get("Items", [])
 
-    irrigation = None
-    if readings:
-        irrigation = readings[0].irrigation_state
+        while "LastEvaluatedKey" in result:
+            result = table.scan(ExclusiveStartKey=result["LastEvaluatedKey"])
+            items.extend(result.get("Items", []))
 
-    return Response({
-        "irrigation": irrigation,
-        "readings": [
+        if not items:
+            return Response({"irrigation": "OFF", "readings": []})
+
+        # Sort all items by timestamp descending
+        items.sort(key=lambda x: x["timestamp"], reverse=True)
+
+        # Get latest reading per sensor_id (ensures all sensors represented)
+        seen = {}
+        for item in items:
+            sid = item["sensor_id"]
+            if sid not in seen:
+                seen[sid] = item
+
+        latest_per_sensor = list(seen.values())
+
+        # Also get last 20 readings for charts (all sensor types)
+        chart_readings = items[:20]
+
+        # Irrigation state from most recent soil reading
+        irrigation = "OFF"
+        for item in items:
+            if item["sensor_id"] == "soil_01":
+                irrigation = item["irrigation"]
+                break
+
+        readings = [
             {
-                "type": r.sensor_type,
-                "value": r.value,
-                "timestamp": r.timestamp
+                "type":      item["type"],
+                "value":     float(item["value"]),
+                "timestamp": item["timestamp"]
             }
-            for r in readings
+            for item in chart_readings
         ]
-    })
 
-    return Response(data)
+        return Response({
+            "irrigation": irrigation,
+            "readings":   readings,
+            "latest":     [
+                {
+                    "sensor_id": item["sensor_id"],
+                    "type":      item["type"],
+                    "value":     float(item["value"]),
+                    "irrigation": item["irrigation"],
+                    "timestamp": item["timestamp"]
+                }
+                for item in latest_per_sensor
+            ]
+        })
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
