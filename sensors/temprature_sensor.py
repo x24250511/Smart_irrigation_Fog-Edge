@@ -1,33 +1,55 @@
-from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
-import json
-import time
 import random
 
-AWS_ENDPOINT = "a1oldafst0eivb-ats.iot.us-east-1.amazonaws.com"
-CLIENT_ID = "temp_sensor_01"
-TOPIC = "sensors/temp"
+# Cert paths — used when running this file standalone
+CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
+CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
+KEY_PATH = f"{CERT_DIR}/private.pem.key"
+CERT_PATH = f"{CERT_DIR}/certificate.pem.crt"
 
-mqtt_client = AWSIoTMQTTClient(CLIENT_ID)
 
-mqtt_client.configureEndpoint(AWS_ENDPOINT, 8883)
-mqtt_client.configureCredentials(
-    "/Users/tejas/Documents/Fog&Edge/smart-irrigation/certs/AmazonRootCA1.pem",
-    "/Users/tejas/Documents/Fog&Edge/smart-irrigation/certs/03ee31c7039a0cfcccc3fbe837231a2e74e78c13b13b2e32c3c111758c119c14-private.pem.key",
-    "/Users/tejas/Documents/Fog&Edge/smart-irrigation/certs/03ee31c7039a0cfcccc3fbe837231a2e74e78c13b13b2e32c3c111758c119c14-certificate.pem.crt"
-)
+class TemperatureSensor:
+    """
+    Simulates ambient temperature in Celsius.
+    Slight cooling effect when irrigation is active.
+    Imported by main.py fog node orchestrator.
+    """
 
-mqtt_client.connect()
+    def __init__(self, sensor_id="temp_01"):
+        self.sensor_id = sensor_id
 
-while True:
-    temp_value = random.uniform(20, 35)
+    def read(self, irrigation_state="OFF"):
+        """Return temperature reading as a dict payload."""
+        if irrigation_state == "ON":
+            value = random.uniform(20, 28)  # cooler when watering
+        else:
+            value = random.uniform(25, 35)  # warmer when dry
 
-    payload = {
-        "sensor_id": "temp_01",
-        "type": "temperature",
-        "value": round(temp_value, 2)
-    }
+        return {
+            "sensor_id": self.sensor_id,
+            "type":      "temperature",
+            "value":     round(value, 2)
+        }
 
-    mqtt_client.publish(TOPIC, json.dumps(payload), 1)
-    print("Published:", payload)
 
-    time.sleep(5)
+# ── Standalone mode — run directly for testing ───────────────────
+if __name__ == "__main__":
+    from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+    import json
+    import time
+
+    CLIENT_ID = "temp_sensor_01"
+    TOPIC = "sensors/temp"
+
+    mqtt_client = AWSIoTMQTTClient(CLIENT_ID)
+    mqtt_client.configureEndpoint(
+        "a1oldafst0eivb-ats.iot.us-east-1.amazonaws.com", 8883)
+    mqtt_client.configureCredentials(CA_PATH, KEY_PATH, CERT_PATH)
+    mqtt_client.connect()
+    print("Temperature sensor connected.")
+
+    sensor = TemperatureSensor()
+    while True:
+        payload = sensor.read()
+        mqtt_client.publish(TOPIC, json.dumps(payload), 1)
+        print("Published:", payload)
+        time.sleep(5)
