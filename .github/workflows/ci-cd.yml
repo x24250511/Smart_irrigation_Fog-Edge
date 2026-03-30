@@ -84,5 +84,6 @@ jobs:
           application_name: irrigation-backend
           environment_name: irrigation-env
           region: us-east-1
+          version_label: ${{ github.sha }}
           deployment_package: deploy.zip
           wait_for_deployment: true

@@ -1,6 +1,6 @@
 import random
 
-# Certificate paths for AWS IoT Core connection
+# Certificate paths for AWS IoT connection
 CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
 CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
 KEY_PATH = f"{CERT_DIR}/private.pem.key"
@@ -8,6 +8,7 @@ CERT_PATH = f"{CERT_DIR}/certificate.pem.crt"
 
 
 class LightSensor:
+
     def __init__(self, sensor_id="light_01", min_lux=0, max_lux=1000):
         self.sensor_id = sensor_id
         self.min_lux = min_lux
