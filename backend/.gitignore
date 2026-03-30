@@ -1,5 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+venv/
 
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
+# Django
+db.sqlite3
+*.log
+staticfiles/
+
+# Deployment
+deploy.zip
+*.zip
+
+# SSL certs
+*.pem
+global-bundle.pem
+
+# EB
+.elasticbeanstalk/logs/
+.elasticbeanstalk/app_versions/
+
+# IDE
+.DS_Store
+.vscode/
+.idea/
