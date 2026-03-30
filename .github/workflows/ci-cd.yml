@@ -45,7 +45,7 @@ jobs:
         with:
           projectBaseDir: backend
           args: >
-            -Dsonar.projectKey=smart-irrigation
+            -Dsonar.projectKey=x24250511_Smart_irrigation_Fog-Edge
             -Dsonar.organization=x24250511
             -Dsonar.python.version=3.11
             -Dsonar.sources=telemetry,irrigation_backend,sqs_worker.py
