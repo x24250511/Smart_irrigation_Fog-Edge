@@ -81,7 +81,7 @@ jobs:
           aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
-          application_name: irrigation-backend
+          application_name: smart-irrigation
           environment_name: irrigation-env
           region: us-east-1
           version_label: ${{ github.sha }}
