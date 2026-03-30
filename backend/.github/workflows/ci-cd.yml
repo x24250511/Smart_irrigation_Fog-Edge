@@ -1,0 +1,83 @@
+name: CI/CD — Smart Irrigation Backend
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  quality:
+    name: SonarCloud Code Quality Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # required for SonarCloud blame data
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Django system check
+        run: python manage.py check
+        env:
+          DJANGO_SETTINGS_MODULE: irrigation_backend.settings
+          DYNAMO_TABLE: SensorReadings
+          SQS_QUEUE_URL: https://sqs.us-east-1.amazonaws.com/test/queue
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=smart-irrigation
+            -Dsonar.organization=x24250511
+            -Dsonar.python.version=3.11
+            -Dsonar.sources=telemetry,irrigation_backend,sqs_worker.py
+            -Dsonar.exclusions=**/migrations/**,**/__pycache__/**
+
+  deploy:
+    name: Deploy to AWS Elastic Beanstalk
+    runs-on: ubuntu-latest
+    needs: quality
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Generate deployment package
+        run: |
+          zip -r deploy.zip . \
+            -x "*.git*" \
+            -x "__pycache__/*" \
+            -x "*.pyc" \
+            -x "venv/*" \
+            -x "*.sqlite3" \
+            -x ".elasticbeanstalk/logs/*" \
+            -x ".elasticbeanstalk/app_versions/*" \
+            -x ".github/*" \
+            -x "*.md"
+
+      - name: Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v21
+        with:
+          aws_access_key: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws_secret_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws_session_token: ${{ secrets.AWS_SESSION_TOKEN }}
+          application_name: irrigation-backend
+          environment_name: irrigation-env
+          region: us-east-1
+          deployment_package: deploy.zip
+          wait_for_deployment: true
