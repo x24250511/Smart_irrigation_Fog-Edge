@@ -1,6 +1,6 @@
 import random
 
-# Cert paths — used when running this file standalone
+# Certificate paths for AWS IoT connection
 CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
 CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
 KEY_PATH = f"{CERT_DIR}/private.pem.key"

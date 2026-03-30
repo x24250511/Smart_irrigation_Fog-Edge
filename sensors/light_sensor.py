@@ -1,6 +1,6 @@
 import random
 
-# Cert paths — used when running this file standalone
+# Certificate paths for AWS IoT Core connection
 CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
 CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
 KEY_PATH = f"{CERT_DIR}/private.pem.key"
@@ -8,12 +8,6 @@ CERT_PATH = f"{CERT_DIR}/certificate.pem.crt"
 
 
 class LightSensor:
-    """
-    Simulates light intensity in lux.
-    Independent of irrigation state — models ambient sunlight.
-    Imported by main.py fog node orchestrator.
-    """
-
     def __init__(self, sensor_id="light_01", min_lux=0, max_lux=1000):
         self.sensor_id = sensor_id
         self.min_lux = min_lux
@@ -28,7 +22,7 @@ class LightSensor:
         }
 
 
-# ── Standalone mode — run directly for testing ───────────────────
+# Standalone mode
 if __name__ == "__main__":
     from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
     import json

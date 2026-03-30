@@ -1,6 +1,6 @@
 import random
 
-# Cert paths — used when running this file standalone
+# Certificate
 CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
 CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
 KEY_PATH = f"{CERT_DIR}/private.pem.key"
@@ -8,11 +8,6 @@ CERT_PATH = f"{CERT_DIR}/certificate.pem.crt"
 
 
 class HumiditySensor:
-    """
-    Simulates relative humidity as a percentage.
-    Humidity rises when irrigation is ON.
-    Imported by main.py fog node orchestrator.
-    """
 
     def __init__(self, sensor_id="humidity_01"):
         self.sensor_id = sensor_id
@@ -31,7 +26,7 @@ class HumiditySensor:
         }
 
 
-# ── Standalone mode — run directly for testing ───────────────────
+# Standalone mode
 if __name__ == "__main__":
     from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
     import json

@@ -1,6 +1,6 @@
 import random
 
-# Cert paths — used when running this file standalone
+# Certificate paths for AWS IoT connection
 CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
 CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
 KEY_PATH = f"{CERT_DIR}/private.pem.key"
@@ -8,12 +8,6 @@ CERT_PATH = f"{CERT_DIR}/certificate.pem.crt"
 
 
 class TemperatureSensor:
-    """
-    Simulates ambient temperature in Celsius.
-    Slight cooling effect when irrigation is active.
-    Imported by main.py fog node orchestrator.
-    """
-
     def __init__(self, sensor_id="temp_01"):
         self.sensor_id = sensor_id
 
@@ -31,7 +25,7 @@ class TemperatureSensor:
         }
 
 
-# ── Standalone mode — run directly for testing ───────────────────
+# Standalone mode
 if __name__ == "__main__":
     from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
     import json

@@ -1,42 +1,39 @@
+from datetime import datetime
+import time
+import json
+from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
+from light_sensor import LightSensor
+from humidity_sensor import HumiditySensor
+from temprature_sensor import TemperatureSensor
+from soil_sensor import SoilMoistureSensor
 import sys
 import os
 
 # Add sensors directory to path — must be before sensor imports
 sys.path.insert(0, "/Users/tejas/Documents/FogEdge/smart-irrigation/sensors")
 
-from soil_sensor import SoilMoistureSensor
-from temprature_sensor import TemperatureSensor
-from humidity_sensor import HumiditySensor
-from light_sensor import LightSensor
 
-from AWSIoTPythonSDK.MQTTLib import AWSIoTMQTTClient
-import json
-import time
-from datetime import datetime
-
-# ── IoT Core config ──────────────────────────────────────────────
+# IoT Core config
 AWS_ENDPOINT = "a1oldafst0eivb-ats.iot.us-east-1.amazonaws.com"
-CLIENT_ID    = "fog_node_01"
-TOPIC        = "irrigation/telemetry"
+CLIENT_ID = "fog_node_01"
+TOPIC = "irrigation/telemetry"
 
-# ── Certificate paths ────────────────────────────────────────────
-CERT_DIR  = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
-CA_PATH   = f"{CERT_DIR}/AmazonRootCA1.pem"
-KEY_PATH  = f"{CERT_DIR}/private.pem.key"
+# Certificate
+CERT_DIR = "/Users/tejas/Documents/FogEdge/smart-irrigation/certs"
+CA_PATH = f"{CERT_DIR}/AmazonRootCA1.pem"
+KEY_PATH = f"{CERT_DIR}/private.pem.key"
 CERT_PATH = f"{CERT_DIR}/certificate.pem.crt"
 
-# ── Irrigation thresholds ────────────────────────────────────────
-LOW_THRESHOLD     = 25
-HIGH_THRESHOLD    = 50
+LOW_THRESHOLD = 25
+HIGH_THRESHOLD = 50
 DISPATCH_INTERVAL = 5
 
-# ── Initialise sensors ───────────────────────────────────────────
-soil_sensor     = SoilMoistureSensor()
-temp_sensor     = TemperatureSensor()
-humidity_sensor = HumiditySensor()
-light_sensor    = LightSensor()
 
-# ── State ────────────────────────────────────────────────────────
+soil_sensor = SoilMoistureSensor()
+temp_sensor = TemperatureSensor()
+humidity_sensor = HumiditySensor()
+light_sensor = LightSensor()
+
 irrigation_state = "OFF"
 
 
@@ -65,7 +62,7 @@ def connect_mqtt():
     return client
 
 
-# ── Main ─────────────────────────────────────────────────────────
+# Main
 print("Fog node starting...")
 mqtt_client = connect_mqtt()
 
@@ -74,7 +71,7 @@ while True:
         timestamp = datetime.utcnow().isoformat()
 
         # Read soil first — needed for irrigation decision
-        soil_data  = soil_sensor.read(irrigation_state)
+        soil_data = soil_sensor.read(irrigation_state)
         irrigation = apply_irrigation_logic(soil_data["value"])
 
         # Read all sensors
@@ -95,7 +92,8 @@ while True:
                 "timestamp":  timestamp
             }
             mqtt_client.publish(TOPIC, json.dumps(payload), 1)
-            print(f"[{payload['type']}] {payload['value']} | Irrigation: {irrigation}")
+            print(
+                f"[{payload['type']}] {payload['value']} | Irrigation: {irrigation}")
 
         time.sleep(DISPATCH_INTERVAL)
 
