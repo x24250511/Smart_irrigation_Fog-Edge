@@ -15,7 +15,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # required for SonarCloud blame data
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -24,11 +24,14 @@ jobs:
 
       - name: Install dependencies
         run: |
+          cd backend
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run Django system check
-        run: python manage.py check
+        run: |
+          cd backend
+          python manage.py check
         env:
           DJANGO_SETTINGS_MODULE: irrigation_backend.settings
           DYNAMO_TABLE: SensorReadings
@@ -40,6 +43,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
+          projectBaseDir: backend
           args: >
             -Dsonar.projectKey=smart-irrigation
             -Dsonar.organization=x24250511
@@ -59,7 +63,8 @@ jobs:
 
       - name: Generate deployment package
         run: |
-          zip -r deploy.zip . \
+          cd backend
+          zip -r ../deploy.zip . \
             -x "*.git*" \
             -x "__pycache__/*" \
             -x "*.pyc" \
